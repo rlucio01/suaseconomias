@@ -9,6 +9,8 @@ import Dashboard from '@/app/Dashboard'
 import Transactions from '@/app/Transactions'
 import Settings from '@/app/Settings'
 import Goals from '@/app/Goals'
+import Budgets from '@/app/Budgets'
+import Analysis from '@/app/Analysis'
 
 export default function App() {
   const { setUser, setIsLoading } = useAuthStore()
@@ -40,8 +42,8 @@ export default function App() {
           <Route path="transactions" element={<Transactions />} />
           <Route path="goals" element={<Goals />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="budget" element={<div className="p-8 text-center text-text-secondary">Orçamentos em breve</div>} />
-          <Route path="analysis" element={<div className="p-8 text-center text-text-secondary">Análise em breve</div>} />
+          <Route path="budget" element={<Budgets />} />
+          <Route path="analysis" element={<Analysis />} />
         </Route>
 
         {/* Fallback */}
