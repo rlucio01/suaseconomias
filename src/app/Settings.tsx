@@ -9,11 +9,11 @@ import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/formatters'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Save, KeyRound } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import { supabase } from '@/lib/supabase'
 
 export default function Settings() {
-    const { user } = useAuthStore()
     const { accounts, fetchAccounts, addAccount, deleteAccount } = useAccountsStore()
     const { categories, fetchCategories, addCategory, deleteCategory } = useCategoriesStore()
 
@@ -94,7 +94,7 @@ export default function Settings() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <span className={`text-xs px-2 py-1 rounded-full ${cat.type === 'income' ? 'bg-income/10 text-income' :
-                                                    cat.type === 'expense' ? 'bg-expense/10 text-expense' : 'bg-gray-100 text-gray-600'
+                                                cat.type === 'expense' ? 'bg-expense/10 text-expense' : 'bg-gray-100 text-gray-600'
                                                 }`}>
                                                 {cat.type}
                                             </span>
@@ -115,22 +115,7 @@ export default function Settings() {
                 </TabsContent>
 
                 <TabsContent value="profile" className="mt-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Perfil do Usuário</CardTitle>
-                            <CardDescription>Informações da sua conta.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-1 text-sm">
-                                <p className="font-medium text-text-secondary">Email</p>
-                                <p>{user?.email}</p>
-                            </div>
-                            <div className="space-y-1 text-sm">
-                                <p className="font-medium text-text-secondary">Conta criada em</p>
-                                <p>{new Date(user?.created_at || '').toLocaleDateString('pt-BR')}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <ProfileSection />
                 </TabsContent>
             </Tabs>
         </div>
@@ -253,5 +238,117 @@ function AddCategoryDialog({ onAdd }: { onAdd: any }) {
                 </form>
             </DialogContent>
         </Dialog>
+    )
+}
+
+function ProfileSection() {
+    const { user } = useAuthStore()
+    const [fullName, setFullName] = useState('')
+    const [saving, setSaving] = useState(false)
+    const [saved, setSaved] = useState(false)
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [passwordMsg, setPasswordMsg] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (user) {
+            supabase.from('profiles').select('full_name').eq('id', user.id).single()
+                .then(({ data }) => {
+                    if (data?.full_name) setFullName(data.full_name)
+                })
+        }
+    }, [user])
+
+    const handleSaveProfile = async () => {
+        if (!user) return
+        setSaving(true)
+        try {
+            const { error } = await supabase.from('profiles').update({ full_name: fullName }).eq('id', user.id)
+            if (error) throw error
+            setSaved(true)
+            setTimeout(() => setSaved(false), 2000)
+        } catch (err: any) {
+            alert('Erro ao salvar perfil: ' + err.message)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleChangePassword = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setPasswordMsg(null)
+        if (newPassword.length < 6) {
+            setPasswordMsg('A senha deve ter pelo menos 6 caracteres.')
+            return
+        }
+        if (newPassword !== confirmPassword) {
+            setPasswordMsg('As senhas não coincidem.')
+            return
+        }
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword })
+            if (error) throw error
+            setPasswordMsg('Senha atualizada com sucesso!')
+            setNewPassword('')
+            setConfirmPassword('')
+        } catch (err: any) {
+            setPasswordMsg('Erro: ' + err.message)
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Perfil do Usuário</CardTitle>
+                    <CardDescription>Gerencie suas informações pessoais.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input value={user?.email || ''} disabled className="bg-gray-50" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Nome Completo</Label>
+                        <div className="flex gap-2">
+                            <Input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Seu nome completo" />
+                            <Button onClick={handleSaveProfile} disabled={saving} className="bg-primary hover:bg-primary-dark">
+                                <Save className="w-4 h-4 mr-2" />
+                                {saving ? 'Salvando...' : saved ? 'Salvo ✓' : 'Salvar'}
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                        <Label className="text-text-secondary">Conta criada em</Label>
+                        <p>{new Date(user?.created_at || '').toLocaleDateString('pt-BR')}</p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><KeyRound className="w-5 h-5" /> Alterar Senha</CardTitle>
+                    <CardDescription>Defina uma nova senha de acesso.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleChangePassword} className="space-y-4 max-w-sm">
+                        <div className="space-y-2">
+                            <Label>Nova Senha</Label>
+                            <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Confirmar Nova Senha</Label>
+                            <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repita a senha" required />
+                        </div>
+                        {passwordMsg && (
+                            <p className={`text-sm ${passwordMsg.startsWith('Erro') || passwordMsg.startsWith('As') || passwordMsg.startsWith('A senha') ? 'text-expense' : 'text-income'}`}>
+                                {passwordMsg}
+                            </p>
+                        )}
+                        <Button type="submit" variant="outline">Alterar Senha</Button>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
     )
 }

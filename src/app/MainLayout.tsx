@@ -1,4 +1,4 @@
-import { Outlet, Navigate, Link } from 'react-router-dom'
+import { Outlet, Navigate, NavLink } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { WalletCards, LogOut, LayoutDashboard, ArrowLeftRight, Target, PieChart, Settings, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -72,7 +72,7 @@ export default function MainLayout() {
 
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Minhas Contas</h3>
-                            <Link to="/settings" className="text-xs text-primary hover:underline" title="Gerenciar Contas">Ver todas</Link>
+                            <NavLink to="/settings" className="text-xs text-primary hover:underline" title="Gerenciar Contas">Ver todas</NavLink>
                         </div>
 
                         <div className="space-y-1 mb-4">
@@ -132,11 +132,18 @@ export default function MainLayout() {
 }
 
 function SidebarLink({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) {
-    // TODO: Use NavLink for active state
     return (
-        <a href={to} className="flex items-center gap-3 px-3 py-2 rounded-md text-text hover:bg-primary-light hover:text-primary-dark transition-colors">
+        <NavLink
+            to={to}
+            className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${isActive
+                    ? 'bg-primary text-white font-semibold shadow-sm'
+                    : 'text-text hover:bg-primary-light hover:text-primary-dark'
+                }`
+            }
+        >
             {icon}
             <span className="font-medium">{label}</span>
-        </a>
+        </NavLink>
     )
 }

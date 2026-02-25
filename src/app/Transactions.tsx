@@ -9,11 +9,13 @@ import { useAccountsStore } from '@/store/accountsStore'
 import { useCategoriesStore } from '@/store/categoriesStore'
 import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Plus, Trash2, ArrowUpRight, ArrowDownRight, ArrowRightLeft } from 'lucide-react'
-import { startOfMonth, endOfMonth, format } from 'date-fns'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Plus, Trash2, ArrowUpRight, ArrowDownRight, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { startOfMonth, endOfMonth, format, addMonths, subMonths } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 export default function Transactions() {
-    const { currentMonth, transactions, fetchTransactions, addTransaction, deleteTransaction, isLoading } = useTransactionsStore()
+    const { currentMonth, setCurrentMonth, transactions, fetchTransactions, addTransaction, deleteTransaction, isLoading } = useTransactionsStore()
     const { accounts, fetchAccounts } = useAccountsStore()
     const { categories, fetchCategories } = useCategoriesStore()
 
@@ -28,14 +30,21 @@ export default function Transactions() {
     const getCategoryName = (id: string | null) => categories.find(c => c.id === id)?.name || 'Sem categoria'
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || 'Conta não encontrada'
 
+    const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1))
+    const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1))
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
                 <h2 className="text-3xl font-serif font-bold tracking-tight text-primary-dark">Transações</h2>
-                <div className="flex items-center gap-4">
-                    <span className="text-text-secondary font-medium hidden sm:inline-block">
-                        {format(currentMonth, 'MMMM yyyy')}
+                <div className="flex items-center gap-2">
+                    {/* Month Navigation */}
+                    <Button variant="outline" size="icon" onClick={goToPrevMonth}><ChevronLeft className="w-4 h-4" /></Button>
+                    <span className="text-sm font-semibold min-w-[120px] text-center capitalize">
+                        {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
                     </span>
+                    <Button variant="outline" size="icon" onClick={goToNextMonth}><ChevronRight className="w-4 h-4" /></Button>
+
                     <AddTransactionDialog
                         onAdd={addTransaction}
                         accounts={accounts}
@@ -56,12 +65,12 @@ export default function Transactions() {
                             Nenhuma transação encontrada neste período.
                         </div>
                     ) : (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             {transactions.map(t => (
                                 <div key={t.id} className="flex items-center justify-between p-4 border rounded-lg bg-surface hover:bg-gray-50 transition-colors">
                                     <div className="flex items-center gap-4">
                                         <div className={`p-2 rounded-full ${t.type === 'income' ? 'bg-income/20 text-income' :
-                                                t.type === 'expense' ? 'bg-expense/20 text-expense' : 'bg-gray-200 text-gray-700'
+                                            t.type === 'expense' ? 'bg-expense/20 text-expense' : 'bg-gray-200 text-gray-700'
                                             }`}>
                                             {t.type === 'income' ? <ArrowUpRight className="w-5 h-5" /> :
                                                 t.type === 'expense' ? <ArrowDownRight className="w-5 h-5" /> :
@@ -71,6 +80,8 @@ export default function Transactions() {
                                             <p className="font-semibold text-text">{t.description}</p>
                                             <p className="text-xs text-text-secondary mt-0.5">
                                                 {formatDate(t.date)} • {getAccountName(t.account_id)} • {getCategoryName(t.category_id)}
+                                                {t.is_recurring && ' • 🔄 Recorrente'}
+                                                {t.installment_total && t.installment_total > 1 && ` • ${t.installment_current}/${t.installment_total}`}
                                             </p>
                                         </div>
                                     </div>
@@ -102,6 +113,10 @@ function AddTransactionDialog({ onAdd, accounts, categories }: { onAdd: any, acc
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
     const [accountId, setAccountId] = useState('')
     const [categoryId, setCategoryId] = useState('')
+    const [isRecurring, setIsRecurring] = useState(false)
+    const [recurrenceRule, setRecurrenceRule] = useState('monthly')
+    const [isInstallment, setIsInstallment] = useState(false)
+    const [installmentTotal, setInstallmentTotal] = useState('2')
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -116,12 +131,12 @@ function AddTransactionDialog({ onAdd, accounts, categories }: { onAdd: any, acc
                 date,
                 account_id: accountId,
                 category_id: categoryId || null,
-                is_consolidated: true, // Default to paid/received
-                is_recurring: false,
-                recurrence_rule: null,
+                is_consolidated: true,
+                is_recurring: isRecurring,
+                recurrence_rule: isRecurring ? recurrenceRule : null,
                 recurrence_group_id: null,
-                installment_current: null,
-                installment_total: null,
+                installment_current: isInstallment ? 1 : null,
+                installment_total: isInstallment ? parseInt(installmentTotal) : null,
                 notes: null,
                 attachment_url: null,
                 transfer_peer_id: null
@@ -141,9 +156,12 @@ function AddTransactionDialog({ onAdd, accounts, categories }: { onAdd: any, acc
         setAmount('')
         setDate(format(new Date(), 'yyyy-MM-dd'))
         setCategoryId('')
+        setIsRecurring(false)
+        setIsInstallment(false)
+        setInstallmentTotal('2')
     }
 
-    const filteredCategories = categories.filter(c => c.type === type)
+    const filteredCategories = categories.filter((c: any) => c.type === type)
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -220,7 +238,7 @@ function AddTransactionDialog({ onAdd, accounts, categories }: { onAdd: any, acc
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {accounts.map(acc => (
+                                    {accounts.map((acc: any) => (
                                         <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -236,11 +254,56 @@ function AddTransactionDialog({ onAdd, accounts, categories }: { onAdd: any, acc
                                     <SelectValue placeholder="Selecione (Opcional)" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {filteredCategories.map(cat => (
+                                    {filteredCategories.map((cat: any) => (
                                         <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
+                        </div>
+                    )}
+
+                    {/* Recurring toggle */}
+                    <div className="flex items-center gap-3 pt-2 border-t border-slate-200">
+                        <Checkbox
+                            id="recurring"
+                            checked={isRecurring}
+                            onCheckedChange={(checked) => {
+                                setIsRecurring(checked as boolean)
+                                if (checked) setIsInstallment(false)
+                            }}
+                        />
+                        <Label htmlFor="recurring" className="text-sm font-normal cursor-pointer">Transação recorrente</Label>
+                    </div>
+                    {isRecurring && (
+                        <div className="space-y-2 pl-7">
+                            <Label>Frequência</Label>
+                            <Select value={recurrenceRule} onValueChange={setRecurrenceRule}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="weekly">Semanal</SelectItem>
+                                    <SelectItem value="monthly">Mensal</SelectItem>
+                                    <SelectItem value="yearly">Anual</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {/* Installment toggle */}
+                    <div className="flex items-center gap-3">
+                        <Checkbox
+                            id="installment"
+                            checked={isInstallment}
+                            onCheckedChange={(checked) => {
+                                setIsInstallment(checked as boolean)
+                                if (checked) setIsRecurring(false)
+                            }}
+                        />
+                        <Label htmlFor="installment" className="text-sm font-normal cursor-pointer">Parcelado</Label>
+                    </div>
+                    {isInstallment && (
+                        <div className="space-y-2 pl-7">
+                            <Label>Número de Parcelas</Label>
+                            <Input type="number" min="2" max="48" value={installmentTotal} onChange={e => setInstallmentTotal(e.target.value)} />
                         </div>
                     )}
 
