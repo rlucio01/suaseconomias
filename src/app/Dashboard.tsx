@@ -14,8 +14,8 @@ import { startOfMonth, endOfMonth, format } from 'date-fns'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 
 export default function Dashboard() {
-    const { accounts, addAccount } = useAccountsStore()
-    const { transactions, fetchTransactions, currentMonth } = useTransactionsStore()
+    const { accounts } = useAccountsStore()
+    const { transactions, fetchTransactions, addTransaction, currentMonth } = useTransactionsStore()
     const { categories, fetchCategories } = useCategoriesStore()
 
     useEffect(() => {
@@ -57,7 +57,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-serif font-bold tracking-tight text-primary-dark">Visão Geral</h2>
                 <div className="flex items-center gap-3">
-                    <QuickAddAccountDialog onAdd={addAccount} />
+                    <QuickAddTransactionDialog onAdd={addTransaction} accounts={accounts} categories={categories} />
                     <span className="text-text-secondary font-medium">
                         {format(currentMonth, 'MMMM yyyy')}
                     </span>
@@ -164,56 +164,101 @@ export default function Dashboard() {
     )
 }
 
-function QuickAddAccountDialog({ onAdd }: { onAdd: any }) {
+function QuickAddTransactionDialog({ onAdd, accounts, categories }: { onAdd: any, accounts: any[], categories: any[] }) {
     const [open, setOpen] = useState(false)
-    const [name, setName] = useState('')
-    const [type, setType] = useState('checking')
-    const [color, setColor] = useState('#3a7d2c')
+    const [loading, setLoading] = useState(false)
+    const [type, setType] = useState('expense')
+    const [description, setDescription] = useState('')
+    const [amount, setAmount] = useState('')
+    const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+    const [accountId, setAccountId] = useState('')
+    const [categoryId, setCategoryId] = useState('')
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        await onAdd({ name, type, color, balance: 0, is_active: true, icon: null })
-        setOpen(false)
-        setName('')
+        if (!accountId) return alert('Selecione uma conta')
+        setLoading(true)
+        try {
+            await onAdd({
+                type, description, amount: parseFloat(amount), date,
+                account_id: accountId, category_id: categoryId || null,
+                is_consolidated: true, is_recurring: false, recurrence_rule: null,
+                recurrence_group_id: null, installment_current: null, installment_total: null,
+                notes: null, attachment_url: null, transfer_peer_id: null
+            })
+            setOpen(false)
+            setDescription(''); setAmount(''); setCategoryId('')
+            setDate(format(new Date(), 'yyyy-MM-dd'))
+        } catch { alert('Erro ao salvar transação') }
+        finally { setLoading(false) }
     }
+
+    const filteredCategories = categories.filter((c: any) => c.type === type)
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button size="sm" className="bg-primary hover:bg-primary-dark">
-                    <Plus className="w-4 h-4 mr-1" /> Nova Conta
+                    <Plus className="w-4 h-4 mr-1" /> Nova Transação
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Adicionar Conta Rápida</DialogTitle>
+                    <DialogTitle>Nova Transação Rápida</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                        <Label>Nome da Conta</Label>
-                        <Input required value={name} onChange={e => setName(e.target.value)} placeholder="Ex: NuBank, Carteira, Itaú" />
+                <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+                    <div className="grid grid-cols-3 gap-2">
+                        <Button type="button" variant={type === 'expense' ? 'default' : 'outline'}
+                            className={type === 'expense' ? 'bg-expense hover:bg-red-700' : ''}
+                            onClick={() => setType('expense')}>Despesa</Button>
+                        <Button type="button" variant={type === 'income' ? 'default' : 'outline'}
+                            className={type === 'income' ? 'bg-income hover:bg-green-700 border-none text-white' : ''}
+                            onClick={() => setType('income')}>Receita</Button>
+                        <Button type="button" variant={type === 'transfer' ? 'default' : 'outline'}
+                            className={type === 'transfer' ? 'bg-gray-600 hover:bg-gray-700' : ''}
+                            onClick={() => setType('transfer')}>Transferência</Button>
                     </div>
                     <div className="space-y-2">
-                        <Label>Tipo</Label>
-                        <Select value={type} onValueChange={setType}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="checking">Conta Corrente</SelectItem>
-                                <SelectItem value="savings">Poupança</SelectItem>
-                                <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                                <SelectItem value="investment">Investimento</SelectItem>
-                                <SelectItem value="cash">Dinheiro</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Cor</Label>
-                        <div className="flex gap-2">
-                            <Input type="color" className="w-16 h-10 p-1" value={color} onChange={e => setColor(e.target.value)} />
-                            <Input readOnly value={color} className="flex-1" />
+                        <Label>Valor</Label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">R$</span>
+                            <Input required type="number" step="0.01" min="0" className="pl-9 text-lg font-medium"
+                                value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" />
                         </div>
                     </div>
-                    <Button type="submit" className="w-full bg-primary hover:bg-primary-dark">Salvar Conta</Button>
+                    <div className="space-y-2">
+                        <Label>Descrição</Label>
+                        <Input required value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex: Mercado, Salário" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Data</Label>
+                            <Input required type="date" value={date} onChange={e => setDate(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Conta</Label>
+                            <Select value={accountId} onValueChange={setAccountId}>
+                                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                <SelectContent>
+                                    {accounts.map((a: any) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    {type !== 'transfer' && (
+                        <div className="space-y-2">
+                            <Label>Categoria</Label>
+                            <Select value={categoryId} onValueChange={setCategoryId}>
+                                <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
+                                <SelectContent>
+                                    {filteredCategories.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary-dark">
+                        {loading ? 'Salvando...' : 'Salvar Lançamento'}
+                    </Button>
                 </form>
             </DialogContent>
         </Dialog>
