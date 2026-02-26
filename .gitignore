@@ -26,3 +26,9 @@ yarn-error.log*
 
 # test files
 test_browser.js
+
+.vercel
+.env*.local
+
+# Local Netlify folder
+.netlify
