@@ -50,7 +50,9 @@ export default function Settings() {
                                             <div className="w-4 h-4 rounded-full" style={{ backgroundColor: acc.color || '#ccc' }} />
                                             <div>
                                                 <p className="font-semibold text-text">{acc.name}</p>
-                                                <p className="text-sm text-text-secondary capitalize">{acc.type}</p>
+                                                <p className="text-sm text-text-secondary">{
+                                                    ({ checking: 'Conta Corrente', savings: 'Poupança', credit_card: 'Cartão de Crédito', investment: 'Investimento', cash: 'Dinheiro' } as Record<string, string>)[acc.type] || acc.type
+                                                }</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
@@ -161,6 +163,7 @@ function AddAccountDialog({ onAdd }: { onAdd: any }) {
                             <SelectContent>
                                 <SelectItem value="checking">Conta Corrente</SelectItem>
                                 <SelectItem value="savings">Poupança</SelectItem>
+                                <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
                                 <SelectItem value="investment">Investimento</SelectItem>
                                 <SelectItem value="cash">Dinheiro</SelectItem>
                             </SelectContent>

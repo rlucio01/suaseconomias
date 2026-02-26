@@ -1,15 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DollarSign, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { DollarSign, ArrowUpCircle, ArrowDownCircle, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAccountsStore } from '@/store/accountsStore'
 import { useTransactionsStore } from '@/store/transactionsStore'
 import { useCategoriesStore } from '@/store/categoriesStore'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatCurrency } from '@/lib/formatters'
 import { startOfMonth, endOfMonth, format } from 'date-fns'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 
 export default function Dashboard() {
-    const { accounts } = useAccountsStore()
+    const { accounts, addAccount } = useAccountsStore()
     const { transactions, fetchTransactions, currentMonth } = useTransactionsStore()
     const { categories, fetchCategories } = useCategoriesStore()
 
@@ -51,8 +56,11 @@ export default function Dashboard() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-serif font-bold tracking-tight text-primary-dark">Visão Geral</h2>
-                <div className="text-text-secondary font-medium">
-                    {format(currentMonth, 'MMMM yyyy')}
+                <div className="flex items-center gap-3">
+                    <QuickAddAccountDialog onAdd={addAccount} />
+                    <span className="text-text-secondary font-medium">
+                        {format(currentMonth, 'MMMM yyyy')}
+                    </span>
                 </div>
             </div>
 
@@ -153,5 +161,61 @@ export default function Dashboard() {
                 </Card>
             </div>
         </div>
+    )
+}
+
+function QuickAddAccountDialog({ onAdd }: { onAdd: any }) {
+    const [open, setOpen] = useState(false)
+    const [name, setName] = useState('')
+    const [type, setType] = useState('checking')
+    const [color, setColor] = useState('#3a7d2c')
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        await onAdd({ name, type, color, balance: 0, is_active: true, icon: null })
+        setOpen(false)
+        setName('')
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" className="bg-primary hover:bg-primary-dark">
+                    <Plus className="w-4 h-4 mr-1" /> Nova Conta
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Adicionar Conta Rápida</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label>Nome da Conta</Label>
+                        <Input required value={name} onChange={e => setName(e.target.value)} placeholder="Ex: NuBank, Carteira, Itaú" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Tipo</Label>
+                        <Select value={type} onValueChange={setType}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="checking">Conta Corrente</SelectItem>
+                                <SelectItem value="savings">Poupança</SelectItem>
+                                <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
+                                <SelectItem value="investment">Investimento</SelectItem>
+                                <SelectItem value="cash">Dinheiro</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Cor</Label>
+                        <div className="flex gap-2">
+                            <Input type="color" className="w-16 h-10 p-1" value={color} onChange={e => setColor(e.target.value)} />
+                            <Input readOnly value={color} className="flex-1" />
+                        </div>
+                    </div>
+                    <Button type="submit" className="w-full bg-primary hover:bg-primary-dark">Salvar Conta</Button>
+                </form>
+            </DialogContent>
+        </Dialog>
     )
 }
