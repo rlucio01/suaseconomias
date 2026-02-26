@@ -10,12 +10,13 @@ import { useCategoriesStore } from '@/store/categoriesStore'
 import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Trash2, ArrowUpRight, ArrowDownRight, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Pencil, ArrowUpRight, ArrowDownRight, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { startOfMonth, endOfMonth, format, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 export default function Transactions() {
-    const { currentMonth, setCurrentMonth, transactions, fetchTransactions, addTransaction, deleteTransaction, isLoading } = useTransactionsStore()
+    const { currentMonth, setCurrentMonth, transactions, fetchTransactions, addTransaction, updateTransaction, deleteTransaction, isLoading } = useTransactionsStore()
+    const [editingTransaction, setEditingTransaction] = useState<any>(null)
     const { accounts, fetchAccounts } = useAccountsStore()
     const { categories, fetchCategories } = useCategoriesStore()
 
@@ -85,12 +86,15 @@ export default function Transactions() {
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
                                         <span className={`font-medium whitespace-nowrap ${t.type === 'expense' ? 'text-expense' : t.type === 'income' ? 'text-income' : 'text-text'}`}>
                                             {t.type === 'expense' ? '- ' : t.type === 'income' ? '+ ' : ''}
                                             {formatCurrency(t.amount)}
                                         </span>
-                                        <Button variant="ghost" size="icon" onClick={() => deleteTransaction(t.id)} className="text-destructive hover:bg-destructive/10 hover:text-destructive hidden sm:flex">
+                                        <Button variant="ghost" size="icon" onClick={() => setEditingTransaction(t)} className="text-primary hover:bg-primary/10 hover:text-primary-dark h-8 w-8">
+                                            <Pencil className="w-4 h-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" onClick={() => deleteTransaction(t.id)} className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8">
                                             <Trash2 className="w-4 h-4" />
                                         </Button>
                                     </div>
@@ -100,6 +104,16 @@ export default function Transactions() {
                     )}
                 </CardContent>
             </Card>
+
+            {editingTransaction && (
+                <EditTransactionDialog
+                    transaction={editingTransaction}
+                    accounts={accounts}
+                    categories={categories}
+                    onSave={updateTransaction}
+                    onClose={() => setEditingTransaction(null)}
+                />
+            )}
         </div>
     )
 }
@@ -310,6 +324,147 @@ function AddTransactionDialog({ onAdd, accounts, categories }: { onAdd: any, acc
                     <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary-dark mt-6">
                         {loading ? 'Salvando...' : 'Salvar Lançamento'}
                     </Button>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function EditTransactionDialog({ transaction, accounts, categories, onSave, onClose }: { transaction: any, accounts: any[], categories: any[], onSave: any, onClose: any }) {
+    const [loading, setLoading] = useState(false)
+    const [type, setType] = useState(transaction.type)
+    const [description, setDescription] = useState(transaction.description)
+    const [amount, setAmount] = useState(Math.abs(transaction.amount).toString())
+    const [date, setDate] = useState(transaction.date)
+    const [accountId, setAccountId] = useState(transaction.account_id)
+    const [categoryId, setCategoryId] = useState(transaction.category_id || '')
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!accountId) return alert('Selecione uma conta')
+
+        setLoading(true)
+        try {
+            await onSave(transaction.id, {
+                type,
+                description,
+                amount: parseFloat(amount),
+                date,
+                account_id: accountId,
+                category_id: categoryId || null,
+            })
+            onClose()
+        } catch (error) {
+            console.error('Error updating transaction', error)
+            alert('Erro ao atualizar transação')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const filteredCategories = categories.filter((c: any) => c.type === type)
+
+    return (
+        <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Editar Transação</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+
+                    <div className="grid grid-cols-3 gap-2">
+                        <Button
+                            type="button"
+                            variant={type === 'expense' ? 'default' : 'outline'}
+                            className={type === 'expense' ? 'bg-expense hover:bg-red-700' : ''}
+                            onClick={() => setType('expense')}
+                        >
+                            Despesa
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={type === 'income' ? 'default' : 'outline'}
+                            className={type === 'income' ? 'bg-income hover:bg-green-700 border-none text-white' : ''}
+                            onClick={() => setType('income')}
+                        >
+                            Receita
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={type === 'transfer' ? 'default' : 'outline'}
+                            className={type === 'transfer' ? 'bg-gray-600 hover:bg-gray-700' : ''}
+                            onClick={() => setType('transfer')}
+                        >
+                            Transferência
+                        </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Valor do Lançamento</Label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">R$</span>
+                            <Input
+                                required
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="pl-9 text-lg font-medium"
+                                value={amount}
+                                onChange={e => setAmount(e.target.value)}
+                                placeholder="0,00"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Descrição</Label>
+                        <Input required value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex: Mercado, Conta de Luz" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Data</Label>
+                            <Input required type="date" value={date} onChange={e => setDate(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Conta</Label>
+                            <Select value={accountId} onValueChange={setAccountId} required>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {accounts.map((acc: any) => (
+                                        <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {type !== 'transfer' && (
+                        <div className="space-y-2">
+                            <Label>Categoria</Label>
+                            <Select value={categoryId} onValueChange={setCategoryId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione (Opcional)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {filteredCategories.map((cat: any) => (
+                                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 mt-6">
+                        <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+                            Cancelar
+                        </Button>
+                        <Button type="submit" disabled={loading} className="flex-1 bg-primary hover:bg-primary-dark">
+                            {loading ? 'Salvando...' : 'Atualizar'}
+                        </Button>
+                    </div>
                 </form>
             </DialogContent>
         </Dialog>
